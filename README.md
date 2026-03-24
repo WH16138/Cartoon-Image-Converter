@@ -34,6 +34,10 @@ The pipeline follows this exact order:
 
 ## 3. Processing Pipeline (Code-Aligned)
 
+**Target Image**
+
+![Original](assets/test4.jpg)
+
 ---
 
 ### Step 0. Image Resize
