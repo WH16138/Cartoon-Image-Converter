@@ -37,6 +37,10 @@ The pipeline follows this exact order:
 **Target Image**
 
 ![Original](assets/test4.jpg)
+<sub>
+Image source: Photo by [Scott Webb] on 
+<a href="https://www.pexels.com/ko-kr/photo/1048035/">Pexels</a>
+</sub>
 
 ---
 
@@ -213,7 +217,14 @@ cartoon = color * line_mask
 
 **Example**
 
-![bad\_case](assets/bad_case.jpg)
+<p align="center">
+  <img src="assets/bad_case.jpg" width="45%">
+  <img src="assets/test1.jpg" width="45%">
+</p>
+<sub>
+Image source: Photo by [Pixabay] on 
+<a href="https://www.pexels.com/photo/woman-in-black-scoop-neck-shirt-smiling-38554/">Pexels</a>
+</sub>
 
 ---
 
@@ -224,7 +235,14 @@ cartoon = color * line_mask
 
 **Example**
 
-![bad\_case2](assets/bad_case2.jpg)
+<p align="center">
+  <img src="assets/bad_case2.jpg" width="45%">
+  <img src="assets/test2.jpg" width="45%">
+</p>
+<sub>
+Image source: Photo by [Valeria Boltneva] on 
+<a href="https://www.pexels.com/ko-kr/photo/1805164/">Pexels</a>
+</sub>
 
 ---
 

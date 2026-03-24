@@ -51,8 +51,8 @@ grad_emph = cv2.GaussianBlur(grad_emph, (3, 3), 0)
 # 강한 gradient일수록 검은 선이 되도록 반전
 line_img = 255 - grad_emph
 
-# 필요시 약한 회색을 흰색으로 더 밀어버리기
-# 너무 연한 선을 없애고 진한 선만 남기려면 threshold 사용
+# 약한 회색을 흰색으로 더 밀어버리기
+# 너무 연한 선을 없애고 진한 선만 남기기
 line_threshold = 220
 line_img = np.where(line_img > line_threshold, 255, line_img).astype(np.uint8)
 
