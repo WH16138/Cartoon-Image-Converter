@@ -2,44 +2,91 @@
 
 ## 1. Project Overview
 
-This project converts a given image into a **cartoon-style rendering** using classical image processing techniques implemented with OpenCV.
+Cartoon-Image-Converter is an OpenCV-based image processing project that transforms a normal image into a cartoon-style image.
 
-Unlike simple edge-overlay approaches, this pipeline focuses on:
+This implementation focuses on:
 
-* Color simplification (quantization)
-* Robust edge extraction (internal gradient)
-* Noise suppression via baseline filtering
-* Direct edge-to-line mapping without contour reconstruction
+* Color simplification via K-means clustering
+* Stable edge extraction using internal gradient
+* Suppression of weak/noisy edges using baseline filtering
+* Direct conversion of gradients into line masks (without contour reconstruction)
 
-The goal is to produce **clean, bold, and visually consistent cartoon-style images** while minimizing artifacts such as double edges and noisy contours.
-
----
-
-## 2. Key Features
-
-* Edge-preserving smoothing (Bilateral Filter)
-* Color quantization using K-means clustering
-* Internal gradient-based edge detection (reduces double edges)
-* Baseline subtraction to remove weak edges
-* Contrast enhancement for strong edge emphasis
-* Direct line mask generation (no contour re-drawing)
-* Final compositing via edge masking
+The goal is to generate **clean outlines and flat color regions**, similar to hand-drawn cartoon images.
 
 ---
 
-## 3. Image Processing Pipeline
+## 2. Project Summary
+
+The pipeline follows this exact order:
+
+1. Image resizing
+2. Bilateral filtering (edge-preserving smoothing)
+3. Color quantization (K-means)
+4. Grayscale conversion + blur
+5. Internal gradient computation
+6. Weak edge suppression (baseline subtraction)
+7. Contrast enhancement
+8. Line mask generation (invert + threshold-like cleanup)
+9. Morphological refinement (close + dilate)
+10. Final compositing
 
 ---
 
-### Step 1. Grayscale Conversion & Preprocessing
+## 3. Processing Pipeline (Code-Aligned)
 
-* Convert image to grayscale
-* Apply Gaussian blur to reduce noise
+---
+
+### Step 0. Image Resize
+
+```python
+if h > max_height:
+    img = cv2.resize(...)
+```
 
 **Purpose**
 
-* Stabilize edge detection
-* Remove high-frequency noise
+* Reduce computation cost
+* Normalize input size
+
+---
+
+### Step 1. Bilateral Filtering (Edge-Preserving Smoothing)
+
+```python
+color = cv2.bilateralFilter(img, 9, 200, 200)
+```
+
+**Purpose**
+
+* Smooth color while preserving edges
+* Remove minor texture noise
+
+---
+
+### Step 2. Color Quantization (K-means)
+
+```python
+color = center[label.flatten()].reshape(color.shape)
+```
+
+**Purpose**
+
+* Reduce color complexity
+* Create flat cartoon-like regions
+
+---
+
+### Step 3. Grayscale Conversion + Blur
+
+```python
+edge_src = cv2.cvtColor(color, cv2.COLOR_BGR2GRAY)
+edge_src = cv2.GaussianBlur(edge_src, (3, 3), 0)
+```
+
+**Purpose**
+
+* Prepare stable input for edge detection
+* Remove small noise
 
 **Output**
 
@@ -47,16 +94,17 @@ The goal is to produce **clean, bold, and visually consistent cartoon-style imag
 
 ---
 
-### Step 2. Internal Gradient Computation
+### Step 4. Internal Gradient Extraction
 
 ```python
-grad = edge_src - erode(edge_src)
+eroded = cv2.erode(edge_src, kernel)
+grad = cv2.subtract(edge_src, eroded)
 ```
 
 **Purpose**
 
-* Extract edge intensity using internal gradient
-* Reduce double-edge artifacts
+* Extract edge intensity
+* Reduce double-edge artifacts compared to standard gradient
 
 **Output**
 
@@ -64,16 +112,16 @@ grad = edge_src - erode(edge_src)
 
 ---
 
-### Step 3. Weak Edge Removal (Baseline Subtraction)
+### Step 5. Weak Edge Removal (Baseline Subtraction)
 
 ```python
-grad_cut = max(grad - baseline, 0)
+grad_cut = cv2.subtract(grad, baseline_img)
 ```
 
 **Purpose**
 
-* Remove weak edges
-* Preserve only strong structural edges
+* Remove weak edges below threshold
+* Keep only strong structural boundaries
 
 **Output**
 
@@ -81,16 +129,18 @@ grad_cut = max(grad - baseline, 0)
 
 ---
 
-### Step 4. Gradient Contrast Enhancement
+### Step 6. Gradient Contrast Enhancement
 
 ```python
-normalize → scale (alpha)
+grad_norm = cv2.normalize(grad_cut, None, 0, 255, cv2.NORM_MINMAX)
+grad_emph = cv2.convertScaleAbs(grad_norm, alpha=2.5)
+grad_emph = cv2.GaussianBlur(grad_emph, (3, 3), 0)
 ```
 
 **Purpose**
 
 * Amplify strong edges
-* Improve edge-background separation
+* Increase contrast between edges and background
 
 **Output**
 
@@ -98,16 +148,34 @@ normalize → scale (alpha)
 
 ---
 
-### Step 5. Line Image Generation
+### Step 7. Line Image Generation
 
 ```python
 line_img = 255 - grad_emph
+line_img = np.where(line_img > 220, 255, line_img)
 ```
 
 **Purpose**
 
 * Convert gradient into black line mask
-* Avoid contour reconstruction artifacts
+* Remove faint gray edges
+
+---
+
+### Step 8. Morphological Refinement
+
+```python
+line_mask = 255 - line_img
+line_mask = cv2.morphologyEx(line_mask, cv2.MORPH_CLOSE, kernel)
+line_mask = cv2.dilate(line_mask, kernel)
+line_img = 255 - line_mask
+```
+
+**Purpose**
+
+* Connect broken edges
+* Slightly thicken lines
+* Improve continuity
 
 **Output**
 
@@ -115,18 +183,7 @@ line_img = 255 - grad_emph
 
 ---
 
-### Step 6. Color Quantization
-
-* Apply K-means clustering to reduce colors
-
-**Purpose**
-
-* Create flat color regions
-* Enhance cartoon-like appearance
-
----
-
-### Step 7. Final Composition
+### Step 9. Final Composition
 
 ```python
 cartoon = color * line_mask
@@ -147,8 +204,8 @@ cartoon = color * line_mask
 
 ### ❌ 1. Low Contrast Images
 
-* Weak gradients are not detected properly
-* Results in missing edges
+* Weak gradients are removed during baseline subtraction
+* Important edges may disappear
 
 **Example**
 
@@ -158,8 +215,8 @@ cartoon = color * line_mask
 
 ### ❌ 2. High Texture / Noise Images
 
-* Fine textures interpreted as edges
-* Produces noisy and cluttered output
+* Small textures can survive filtering
+* Results in cluttered edges
 
 **Example**
 
@@ -167,33 +224,28 @@ cartoon = color * line_mask
 
 ---
 
-### ❌ 3. Lighting Sensitivity
+### ❌ 3. Parameter Sensitivity
 
-* Shadows and illumination changes affect gradient magnitude
-* Leads to inconsistent edge extraction
-
----
-
-### ❌ 4. Parameter Sensitivity
-
-Key parameters significantly affect output quality:
+Important parameters:
 
 * `baseline` → edge suppression strength
-* `alpha` → contrast intensity
+* `alpha` → contrast level
 * `kernel size` → edge thickness
-* `K` → level of color simplification
+* `K` → color simplification level
+
+Small changes can significantly affect output quality.
 
 ---
 
 ## 5. Discussion
 
-This implementation improves upon naive cartoon rendering methods by:
+This approach improves cartoon rendering quality by:
 
-* Eliminating contour reconstruction errors
-* Reducing double-edge artifacts
-* Explicitly filtering weak edges before enhancement
+* Avoiding contour reconstruction (reduces distortion)
+* Using internal gradient to reduce double edges
+* Removing weak edges before enhancement
 
-However, since it relies on heuristic image processing techniques, performance varies depending on image characteristics.
+However, the method is still heuristic-based and sensitive to input image characteristics.
 
 ---
 
@@ -211,12 +263,15 @@ python main.py
 
 ---
 
-## 7. Example Result
+## 7. Output Summary
 
-| Stage        | Image                        |
-| ------------ | ---------------------------- |
-| Edge Source  | assets/edge_source.jpg       |
-| Gradient     | assets/internal_gradient.jpg |
-| Final Output | assets/cartoon.jpg           |
+| Stage             | Image                          |
+| ----------------- | ------------------------------ |
+| Edge Source       | assets/edge_source.jpg         |
+| Gradient          | assets/internal_gradient.jpg   |
+| Gradient Cut      | assets/gradient_cut.jpg        |
+| Enhanced Gradient | assets/gradient_emphasized.jpg |
+| Line Image        | assets/line_image.jpg          |
+| Final Output      | assets/cartoon.jpg             |
 
 ---
